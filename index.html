@@ -1,0 +1,124 @@
+import javax.swing.*;
+import javax.sound.sampled.*;
+import java.awt.*;
+import java.io.File;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+
+public class MusicPlayerGUI extends JFrame {
+
+    private JButton selectButton, playButton, stopButton;
+    private JLabel statusLabel;
+    private File currentAudioFile;
+    private Clip audioClip;
+    private boolean isPlaying = false;
+
+    public MusicPlayerGUI() {
+        // --- GUI Setup ---
+        setTitle("Java Music Player");
+        setSize(400, 200);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLayout(new FlowLayout());
+
+        selectButton = new JButton("Select Music File");
+        playButton = new JButton("Play");
+        stopButton = new JButton("Stop");
+        statusLabel = new JLabel("Status: Ready. Please select a WAV file.");
+
+        // Add action listeners
+        selectButton.addActionListener(e -> selectFile());
+        playButton.addActionListener(e -> togglePlayStop());
+        stopButton.addActionListener(e -> stopMusic());
+        
+        playButton.setEnabled(false);
+        stopButton.setEnabled(false);
+
+        add(selectButton);
+        add(playButton);
+        add(stopButton);
+        add(statusLabel);
+
+        setVisible(true);
+    }
+
+    private void selectFile() {
+        JFileChooser fileChooser = new JFileChooser();
+        // Restrict selection to common audio files (WAV, AIFF might work)
+        // Note: Built-in Java sound does not guarantee MP3 support without external libs/plugins.
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Audio Files (WAV, AIFF)", "wav", "aiff"));
+        
+        int result = fileChooser.showOpenDialog(this);
+        
+        if (result == JFileChooser.APPROVE_OPTION) {
+            currentAudioFile = fileChooser.getSelectedFile();
+            statusLabel.setText("Selected: " + currentAudioFile.getName());
+            playButton.setEnabled(true);
+            stopButton.setEnabled(true);
+            
+            // Close any previous clip
+            if (audioClip != null && audioClip.isOpen()) {
+                audioClip.close();
+            }
+            isPlaying = false;
+            playButton.setText("Play");
+        }
+    }
+
+    private void togglePlayStop() {
+        if (currentAudioFile == null) {
+            statusLabel.setText("Error: No file selected.");
+            return;
+        }
+
+        if (isPlaying) {
+            stopMusic();
+        } else {
+            playMusic(currentAudioFile);
+        }
+    }
+
+    private void playMusic(File file) {
+        try {
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(file);
+            audioClip = AudioSystem.getClip();
+            audioClip.open(audioStream);
+
+            // Add a listener to reset buttons when music finishes playing
+            audioClip.addLineListener(event -> {
+                if (event.getType() == LineEvent.Type.STOP) {
+                    // This runs when the audio stops naturally
+                    isPlaying = false;
+                    playButton.setText("Play");
+                    statusLabel.setText("Status: Playback finished.");
+                }
+            });
+            
+            audioClip.start();
+            isPlaying = true;
+            playButton.setText("Pause/Stop"); // Use the same button for pause/stop for simplicity
+            statusLabel.setText("Status: Playing " + file.getName());
+
+        } catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
+            e.printStackTrace();
+            statusLabel.setText("Error: Cannot play file. Check if it is a valid WAV file.");
+        }
+    }
+
+    private void stopMusic() {
+        if (audioClip != null && audioClip.isRunning()) {
+            audioClip.stop();
+            audioClip.close();
+        }
+        isPlaying = false;
+        playButton.setText("Play");
+        statusLabel.setText("Status: Stopped.");
+    }
+
+    public static void main(String[] args) {
+        // Ensure GUI creation happens on the Event Dispatch Thread (EDT)
+        SwingUtilities.invokeLater(() -> new MusicPlayerGUI());
+    }
+}
+
+
